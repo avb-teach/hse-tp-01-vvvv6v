@@ -1,24 +1,31 @@
 #!/usr/bin/env bash
+set -euo pipefail
+md=""
 if [[ $1 == --max_depth ]]; then md=$2; shift 2; fi
-id=$1; od=$2
-mkdir -p "$od"
-while IFS= read -r f; do
-  r=${f#"$id"/}
+in=$1; out=$2
+mkdir -p "$out"
+while IFS= read -r -d '' f; do
+  rel=${f#"$in"/}
   if [[ -n $md ]]; then
-    d=$(awk -F/ '{print NF-1}'<<<"$r")
-    if (( d<=md )); then p="$r"; else
-      h=$(echo "$r"|cut -d/ -f1-"$md")
-      p="$h/$(basename "$r")"
+    IFS=/ read -ra parts <<< "$rel"
+    len=${#parts[@]}
+    dirs=$((len-1))
+    if (( dirs > md )); then
+      head=("${parts[@]:0:md}")
+      file=${parts[len-1]}
+      rel=$(IFS=/; echo "${head[*]}")/"$file"
     fi
   else
-    p=$(basename "$r")
+    rel=${rel##*/}
   fi
-  t="$od/$p"
-  mkdir -p "$(dirname "$t")"
-  bname=$(basename "$t")
-  b=${bname%.*}; e=${bname##*.}; [[ $b == $e ]]&&e=""||e=".$e"
-  dp=$(dirname "$t")
-  c="$t"; n=1
-  while [[ -e $c ]]; do c="$dp/${b}${n}${e}"; ((n++)); done
-  cp "$f" "$c"
-done < <(find "$id" -type f)
+  dst="$out/$rel"
+  mkdir -p "$(dirname "$dst")"
+  base=${dst%.*}; ext=${dst##*.}
+  [[ $base == $dst ]] && ext="" || ext=".$ext"
+  n=1; cur=$dst
+  while [[ -e $cur ]]; do
+    cur="${base}${n}${ext}"
+    ((n++))
+  done
+  cp "$f" "$cur"
+done < <(find "$in" -type f -print0)
