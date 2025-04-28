@@ -1,54 +1,32 @@
 #!/usr/bin/env bash
 set -euo pipefail
-
-md=""
-if [[ ${1-} == --max_depth ]]; then
-  md=$2
-  shift 2
-fi
-
-src=$1
-dst=$2
+md=1
+if [[ ${1-} == --max_depth ]]; then md=$2; shift 2; fi
+src=$1; dst=$2
 mkdir -p "$dst"
-
-find "$src" -type f -print0 | while IFS= read -r -d '' file; do
-
-  rel=${file#"$src"/}
-  IFS=/ read -ra parts <<< "$rel"
-  fname=${parts[-1]}
-  dircount=$(( ${#parts[@]} - 1 ))
-
-  if [[ -n $md ]]; then
-    if (( dircount < md )); then
-      keep=$dircount
-    else
-      keep=$md
-    fi
+find "$src" -type f -print0 | while IFS= read -r -d '' f; do
+  rel=${f#"$src"/}
+  IFS=/ read -ra p <<< "$rel"
+  n=${#p[@]}
+  if (( n>md )); then
+    start=$((n-md))
+    np=( "${p[@]:start:md}" )
   else
-    keep=$dircount
+    np=( "${p[@]}" )
   fi
-
-  if (( keep > 0 )); then
-    subdir=$(IFS=/; echo "${parts[@]:0:keep}")
-    destdir="$dst/$subdir"
-  else
-    destdir="$dst"
-  fi
-  mkdir -p "$destdir"
-
-  base=${fname%.*}
-  ext=${fname##*.}
-  if [[ $base == $fname ]]; then
-    ext=""
-  else
-    ext=".$ext"
-  fi
-  dest="$destdir/$fname"
+  new=$(IFS=/; echo "${np[*]}")
+  dest="$dst/$new"
+  dir=$(dirname "$dest")
+  mkdir -p "$dir"
+  name="${np[-1]}"
+  base="${name%.*}"
+  ext="${name##*.}"
+  if [[ $base == $name ]]; then ext=""; else ext=".$ext"; fi
+  out="$dir/$name"
   i=1
-  while [[ -e $dest ]]; do
-    dest="$destdir/${base}${i}${ext}"
+  while [[ -e $out ]]; do
+    out="$dir/${base}${i}${ext}"
     ((i++))
   done
-
-  cp "$file" "$dest"
+  cp "$f" "$out"
 done
