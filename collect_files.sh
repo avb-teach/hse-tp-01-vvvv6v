@@ -5,16 +5,19 @@ copy_file() {
     local dest_dir="$2"
     local name=$(basename "$src")
     local base="${name%.*}"
-    local ext=""
-    
-    [[ "$name" == *.* ]] && ext=".${name##*.}"
-    [ -n "$ext" ] && base="${name%.$ext}"
-    
+    local ext="${name##*.}"
+
+    if [[ "$base" == "$ext" ]]; then
+        ext=""
+    else
+        ext=".$ext"
+    fi
+
     local counter=1
     local dest="$dest_dir/$name"
     
     while [[ -e "$dest" ]]; do
-        dest="$dest_dir/${base}_$counter$ext"
+        dest="$dest_dir/${base}_${counter}${ext}"
         ((counter++))
     done
     
@@ -31,15 +34,15 @@ if [[ "$1" == "--max_depth" ]]; then
         exit 1
     fi
     max_depth="$2"
-    input_dir="$3"
-    output_dir="$4"
+    input_dir=$(realpath -e "$3")
+    output_dir=$(realpath -m "$4")
 else
     if [[ $# -ne 2 ]]; then
         echo "Usage: $0 [--max_depth <depth>] <input_dir> <output_dir>"
         exit 1
     fi
-    input_dir="$1"
-    output_dir="$2"
+    input_dir=$(realpath -e "$1")
+    output_dir=$(realpath -m "$2")
 fi
 
 if [[ ! -d "$input_dir" ]]; then
@@ -47,14 +50,13 @@ if [[ ! -d "$input_dir" ]]; then
     exit 1
 fi
 
-mkdir -p "$output_dir"
+mkdir -p "$output_dir" || exit 1
 
+find_cmd=("find" "$input_dir" "-type" "f")
 if [[ $max_depth -gt 0 ]]; then
-    find_options=(-maxdepth "$max_depth")
-else
-    find_options=()
+    find_cmd+=("-maxdepth" "$max_depth")
 fi
 
-find "$input_dir" -type f "${find_options[@]}" | while IFS= read -r file; do
+"${find_cmd[@]}" | while IFS= read -r -d $'\0' file; do
     copy_file "$file" "$output_dir"
 done
