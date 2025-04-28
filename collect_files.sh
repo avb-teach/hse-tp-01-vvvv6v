@@ -1,30 +1,38 @@
 #!/usr/bin/env bash
 set -euo pipefail
 md=""
-if [[ $1 == --max_depth ]]; then md=$2; shift 2; fi
+if [[ ${1-} == --max_depth ]]; then md=$2; shift 2; fi
 id=$1; od=$2
 mkdir -p "$od"
-while IFS= read -r -d '' f; do
+find "$id" -type f -print0 | while IFS= read -r -d '' f; do
   r=${f#"$id"/}
   if [[ -n $md ]]; then
     IFS=/ read -ra a <<< "$r"
-    l=${#a[@]}
-    if (( l > md )); then
-      s=$((l - md))
-      a=("${a[@]:s:md}")
+    n=${#a[@]}
+    file=${a[n-1]}
+    dcount=$((n-1))
+    if (( dcount > md )); then
+      keep=$md
+    else
+      keep=$dcount
     fi
-    r=$(IFS=/; echo "${a[*]}")
+    if (( keep > 0 )); then
+      dirs=( "${a[@]:0:keep}" )
+      rel="$(IFS=/; echo "${dirs[*]}")/$file"
+    else
+      rel="$file"
+    fi
   else
-    r=${r##*/}
+    rel=${r##*/}
   fi
-  t="$od/$r"
-  mkdir -p "$(dirname "$t")"
-  b="${t%.*}"; x="${t##*.}"
-  [[ $b == $t ]] && x="" || x=".$x"
-  c="$t"; n=1
-  while [[ -e $c ]]; do
-    c="${b}${n}${x}"
-    ((n++))
+  dst="$od/$rel"
+  mkdir -p "$(dirname "$dst")"
+  base=${dst%.*}; ext=${dst##*.}
+  if [[ $base == $dst ]]; then ext=""; else ext=".$ext"; fi
+  cur="$dst"; i=1
+  while [[ -e $cur ]]; do
+    cur="${base}${i}${ext}"
+    ((i++))
   done
-  cp "$f" "$c"
-done < <(find "$id" -type f -print0)
+  cp "$f" "$cur"
+done
