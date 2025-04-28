@@ -1,32 +1,35 @@
 #!/usr/bin/env bash
 set -euo pipefail
-md=1
-if [[ ${1-} == --max_depth ]]; then md=$2; shift 2; fi
-src=$1; dst=$2
-mkdir -p "$dst"
-find "$src" -type f -print0 | while IFS= read -r -d '' f; do
-  rel=${f#"$src"/}
+mdirs=-1
+if [[ $# -ge 3 && $1 == --max_depth ]]; then
+  m=$2
+  if ! [[ $m =~ ^[0-9]+$ && $m -ge 1 ]]; then exit 1; fi
+  mdirs=$((m-1))
+  shift 2
+fi
+[[ $# -eq 2 ]] || exit 1
+in=$1; out=$2
+mkdir -p "$out"
+find "$in" -type f -print0 | while IFS= read -r -d '' f; do
+  rel=${f#"$in"/}
   IFS=/ read -ra p <<< "$rel"
-  n=${#p[@]}
-  if (( n>md )); then
-    start=$((n-md))
-    np=( "${p[@]:start:md}" )
+  len=${#p[@]}; fn=${p[len-1]}; dc=$((len-1))
+  if (( mdirs>=0 )); then
+    if (( dc<=mdirs )); then kd=$dc; si=0; else kd=$mdirs; si=$((dc-kd)); fi
   else
-    np=( "${p[@]}" )
+    kd=$dc; si=0
   fi
-  new=$(IFS=/; echo "${np[*]}")
-  dest="$dst/$new"
-  dir=$(dirname "$dest")
-  mkdir -p "$dir"
-  name="${np[-1]}"
-  base="${name%.*}"
-  ext="${name##*.}"
-  if [[ $base == $name ]]; then ext=""; else ext=".$ext"; fi
-  out="$dir/$name"
-  i=1
-  while [[ -e $out ]]; do
-    out="$dir/${base}${i}${ext}"
-    ((i++))
-  done
-  cp "$f" "$out"
+  if (( kd>0 )); then
+    sd=( "${p[@]:si:kd}" )
+    sub=$(IFS=/; echo "${sd[*]}")
+    dd="$out/$sub"
+  else
+    dd="$out"
+  fi
+  mkdir -p "$dd"
+  bn=${fn%.*}; ex=${fn##*.}
+  [[ $bn == $fn ]] && e="" || e=".$ex"
+  dest="$dd/$bn$e"; i=1
+  while [[ -e $dest ]]; do dest="$dd/${bn}${i}${e}"; ((i++)); done
+  cp "$f" "$dest"
 done
